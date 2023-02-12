@@ -9,7 +9,9 @@ import {useSelector} from 'react-redux';
 
 export const useWebsocket = () => {
   const websocket = useRef(null);
+  // const [websocket, setWebsocket] = useState(null);
   const [data, setData] = useState(null);
+  const [dataToSend, setDataToSend] = useState(null);
   const auth = useSelector(state => state.user.auth);
 
   const connect = async () => {
@@ -20,7 +22,7 @@ export const useWebsocket = () => {
     };
     websocket.current.onmessage = event => {
       console.log(event);
-      setData(JSON.parse(event.data));
+      setData(event.data);
     };
     websocket.current.onerror = event => {
       console.log(event);
@@ -34,17 +36,18 @@ export const useWebsocket = () => {
   }, [auth]);
 
   useEffect(() => {
-    if (data.content !== '/A new socket has connected.') {
-      if (response.content != '/A new socket has connected.' && this != null) {
+    console.log(data);
+    if (data && data.content) {
+      if (data.content !== '/A new socket has connected.') {
         //синхронизация таймеров
-        if (response.info && response.info.includes('{')) {
+        if (data.info && data.info.includes('{')) {
           // const {user, op} = JSON.parse(response.info);
           // if (user !== undefined && op !== undefined) {
           //   this.props.setTimeOp(Number(user - 450));
           // }
         }
         // переподключение
-        else if (response.content == 'in_game_opponent') {
+        else if (data.content == 'in_game_opponent') {
           // this.sendMessage();
           // clearTimeout(this.time);
           // this.setState(() => ({isUserTurn: false}));
@@ -55,71 +58,71 @@ export const useWebsocket = () => {
           //   : this.props.opponentTurn();
         }
         //переподключение
-        if (
-          response.content == 'Game' &&
-          JSON.parse(localStorage.getItem('game'))
-        ) {
-          // let game = JSON.parse(localStorage.getItem('game'));
-          // console.log(game);
-          // this.game.load(game.fen);
-          // this.props.isPlaying();
-          // this.props.Opponent(localStorage.getItem('opponent'));
-          // if (game.room > 0 && game.orientation && game.fen != this.state.fen) {
-          //   this.props.userTurn();
-          //   this.props.opponentStopTurn();
-          // }
-          // let move = game.move
-          //   ? this.game.move({
-          //       from: game.move.from,
-          //       to: game.move.to,
-          //     })
-          //   : '';
-          // if (move && move.captured) {
-          //   addPiece(
-          //     this.state.orientation,
-          //     this.props.userCaptured,
-          //     this.props.opponentCaptured,
-          //     this.props.setOpponentCount,
-          //     this.props.setUserCount,
-          //     move,
-          //   );
-          // }
-          // if (this.game.game_over()) {
-          //   this.props.isEnd(this.game);
-          //   this.props.userTurnStop();
-          //   this.props.opponentStopTurn();
-          //   let status = getStatus(this.game, this.state.orientation);
-          //   console.log(status);
-          //   this.props.setStatus(status);
-          //   this.props.SaveHistory({
-          //     history: this.game.history({verbose: true}),
-          //     status,
-          //     orientir: this.state.orientation,
-          //   });
-          //   this.props.isNotPlaying();
-          // }
-          // this.props.setHistory(this.game.history({verbose: true}));
-          // this.setState(() => ({
-          //   ...game,
-          // }));
-          // localStorage.setItem(
-          //   'game',
-          //   JSON.stringify({
-          //     fen:
-          //       this.game.fen() != this.state.fen
-          //         ? this.game.fen()
-          //         : this.state.fen,
-          //     history: this.game.history({verbose: true}),
-          //     move: game.move ? game.move : this.state.move,
-          //     orientation: this.state.orientation,
-          //     room: this.state.room,
-          //   }),
-          // );
-          // this.props.userTurn();
-          // this.props.opponentStopTurn();
-        }
+        // if (
+        //   data.content == 'Game' &&
+        //   JSON.parse(localStorage.getItem('game'))
+        // ) {
+        //   // let game = JSON.parse(localStorage.getItem('game'));
+        //   // console.log(game);
+        //   // this.game.load(game.fen);
+        //   // this.props.isPlaying();
+        //   // this.props.Opponent(localStorage.getItem('opponent'));
+        //   // if (game.room > 0 && game.orientation && game.fen != this.state.fen) {
+        //   //   this.props.userTurn();
+        //   //   this.props.opponentStopTurn();
+        //   // }
+        //   // let move = game.move
+        //   //   ? this.game.move({
+        //   //       from: game.move.from,
+        //   //       to: game.move.to,
+        //   //     })
+        //   //   : '';
+        //   // if (move && move.captured) {
+        //   //   addPiece(
+        //   //     this.state.orientation,
+        //   //     this.props.userCaptured,
+        //   //     this.props.opponentCaptured,
+        //   //     this.props.setOpponentCount,
+        //   //     this.props.setUserCount,
+        //   //     move,
+        //   //   );
+        //   // }
+        //   // if (this.game.game_over()) {
+        //   //   this.props.isEnd(this.game);
+        //   //   this.props.userTurnStop();
+        //   //   this.props.opponentStopTurn();
+        //   //   let status = getStatus(this.game, this.state.orientation);
+        //   //   console.log(status);
+        //   //   this.props.setStatus(status);
+        //   //   this.props.SaveHistory({
+        //   //     history: this.game.history({verbose: true}),
+        //   //     status,
+        //   //     orientir: this.state.orientation,
+        //   //   });
+        //   //   this.props.isNotPlaying();
+        //   // }
+        //   // this.props.setHistory(this.game.history({verbose: true}));
+        //   // this.setState(() => ({
+        //   //   ...game,
+        //   // }));
+        //   // localStorage.setItem(
+        //   //   'game',
+        //   //   JSON.stringify({
+        //   //     fen:
+        //   //       this.game.fen() != this.state.fen
+        //   //         ? this.game.fen()
+        //   //         : this.state.fen,
+        //   //     history: this.game.history({verbose: true}),
+        //   //     move: game.move ? game.move : this.state.move,
+        //   //     orientation: this.state.orientation,
+        //   //     room: this.state.room,
+        //   //   }),
+        //   // );
+        //   // this.props.userTurn();
+        //   // this.props.opponentStopTurn();
+        // }
         //игрок отключился
-        if (response.info == 'websocket: close 1001 (going away)') {
+        if (data.info == 'websocket: close 1001 (going away)') {
           // let turn = this.game.turn();
           // let color = turn == 'w' ? 'write' : 'black';
           // if (color == this.state.orientation) {
@@ -136,15 +139,15 @@ export const useWebsocket = () => {
           //   },
           //   this.timeToSendUser <= 10000 ? 1000 : 5000,
           // );
-        } else if (response == 'finish') {
+        } else if (data == 'finish') {
           // console.log('stop');
         }
         //ничья
-        else if (response.info == 'disperse') {
+        else if (data.info == 'disperse') {
           // this.props.setWantDraw();
         }
         //согласье на ничью
-        else if (response.info == 'disperse_yes') {
+        else if (data.info == 'disperse_yes') {
           // this.props.isEnd(this.game);
           // this.props.userTurnStop();
           // this.props.opponentStopTurn();
@@ -167,7 +170,7 @@ export const useWebsocket = () => {
           // }));
         }
         //игрок сдался
-        else if (response.info == 'gave up') {
+        else if (data.info == 'gave up') {
           // this.props.isEnd(this.game);
           // this.props.userTurnStop();
           // this.props.opponentStopTurn();
@@ -325,5 +328,11 @@ export const useWebsocket = () => {
     }
   }, [data]);
 
-  return {websocket};
+  useEffect(() => {
+    if (dataToSend) {
+      websocket.current.send(dataToSend);
+    }
+  }, [dataToSend]);
+
+  return {websocket, setDataToSend};
 };
