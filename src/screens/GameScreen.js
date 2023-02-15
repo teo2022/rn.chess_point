@@ -9,9 +9,10 @@ import {WebsocketContext} from '../context/WebsocketContext';
 import {GlobalStyles} from '../constants/globalStyles';
 
 const GameScreen = () => {
-  const {websocket, setDataToSend} = useContext(WebsocketContext);
+  const {setDataToSend, chessboard} = useContext(WebsocketContext);
   const [time, setTime] = useState('10');
   const [searchStarted, setSearchStarted] = useState(false);
+
   const intervals = [
     {label: '1 мин', value: '1'},
     {label: '3 мин', value: '3'},
@@ -44,7 +45,7 @@ const GameScreen = () => {
   return (
     <View style={[GlobalStyles.container, GlobalStyles.flexJustifyCenter]}>
       <View style={[GlobalStyles.mb10, {alignSelf: 'center'}]}>
-        <Chessboard />
+        <Chessboard ref={chessboard} />
       </View>
       <View style={[GlobalStyles.mb10]}>
         <Select

@@ -5,14 +5,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Constants} from '../constants/constants';
 import {useState} from 'react';
 import {useEffect} from 'react';
-import {useSelector} from 'react-redux';
+import {useDispatch, useSelector} from 'react-redux';
+import {
+  isPlaying,
+  needRerender,
+  opponentStopTurn,
+  opponentTurn,
+  setFen,
+  setFirstTurn,
+  setIsSync,
+  setOpponentFirstTurn,
+  setOrientation,
+  setRoom,
+  startEnd,
+  userTurn,
+  userTurnStop,
+} from '../store/reducers/gameReducer';
 
 export const useWebsocket = () => {
   const websocket = useRef(null);
-  // const [websocket, setWebsocket] = useState(null);
+  const chessboard = useRef(null);
   const [data, setData] = useState(null);
   const [dataToSend, setDataToSend] = useState(null);
+  const dispatch = useDispatch();
   const auth = useSelector(state => state.user.auth);
+  const fen = useSelector(state => state.game.fen);
 
   const connect = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -22,7 +39,11 @@ export const useWebsocket = () => {
     };
     websocket.current.onmessage = event => {
       console.log(event);
-      setData(event.data);
+      try {
+        setData(JSON.parse(event.data));
+      } catch (error) {
+        setData(event.data);
+      }
     };
     websocket.current.onerror = event => {
       console.log(event);
@@ -37,7 +58,8 @@ export const useWebsocket = () => {
 
   useEffect(() => {
     console.log(data);
-    if (data && data.content) {
+    console.log(typeof data);
+    if (data) {
       if (data.content !== '/A new socket has connected.') {
         //синхронизация таймеров
         if (data.info && data.info.includes('{')) {
@@ -195,134 +217,145 @@ export const useWebsocket = () => {
         } else {
           // let res = response;
           //начало партии
-          // if (res.step) {
-          //   this.props.Opponent(res.opponent_id);
-          //   this.props.setOrientation(res.step);
-          //   this.setState(() => ({
-          //     orientation: res.step,
-          //     room: res.room,
-          //     fen: 'start',
-          //   }));
-          //   this.props.startEnd();
-          //   this.props.isPlaying();
-          //   localStorage.setItem('opponent', res.opponent_id);
-          //   this.props.setFirstTurn(true);
-          //   this.props.setOpponentFirstTurn(true);
-          //   this.props.setIsSync();
-          //   if (res.step == 'write') {
-          //     this.props.userTurn();
-          //     this.props.opponentStopTurn();
-          //     this.interval = setInterval(
-          //       () => {
-          //         this.sendMessage(true);
-          //       },
-          //       this.timeToSendUser <= 10000 ? 1000 : 5000,
-          //     );
-          //   } else if (res.step == 'black') {
-          //     this.props.userTurnStop();
-          //     this.props.opponentTurn();
-          //   }
-          // } else {
-          //   if (res.room > 0 && res.orientation && res.fen != this.state.fen) {
-          //     clearInterval(this.interval);
-          //     this.props.userTurn();
-          //     this.props.opponentStopTurn();
-          //   }
-          //   if (res.user_time && res.opponent_time) {
-          //     localStorage.setItem('response_user_time', res.opponent_time);
-          //     localStorage.setItem('response_opponent_time', res.user_time);
-          //     this.props.needRerender(true);
-          //     let turn = this.game.turn() == 'w' ? 'write' : 'black';
-          //     if (this.state.orientation != turn) {
-          //       this.props.userTurnStop();
-          //       this.props.opponentTurn();
-          //     }
-          //   }
-          //внутриигровой чат
-          // if (res.chat != this.props.chat) {
-          //   this.props.setChat(res.chat);
-          //   this.props.setMessages({
-          //     msg: res.chat,
-          //     name: this.props.opponent.login || this.props.opponent.name,
-          //   });
-          // }
-          //ход
-          // let move = '';
-          // if (res.move) {
-          //   if (res.move.san.split('').includes('=')) {
-          //     move = this.game.move(res.move.san);
-          //   } else {
-          //     move = this.game.move({
-          //       from: res.move.from,
-          //       to: res.move.to,
-          //     });
-          //   }
-          // }
-          //   if (move && move.captured) {
-          //     addPiece(
-          //       this.state.orientation,
-          //       this.props.userCaptured,
-          //       this.props.opponentCaptured,
-          //       this.props.setOpponentCount,
-          //       this.props.setUserCount,
-          //       move,
-          //     );
-          //   }
-          //   if (this.game.game_over()) {
-          //     clearInterval(this.interval);
-          //     this.props.isEnd(this.game);
-          //     this.props.userTurnStop();
-          //     this.props.opponentStopTurn();
-          //     let status = getStatus(this.game, this.state.orientation);
-          //     console.log(status);
-          //     this.props.setStatus(status);
-          //     this.props.SaveHistory({
-          //       history: this.game.history({verbose: true}),
-          //       status,
-          //       orientir: this.state.orientation,
-          //     });
-          //     this.props.isNotPlaying();
-          //   }
-          //   this.props.setHistory(this.game.history({verbose: true}));
-          //   this.setState(({pieceSquare}) => ({
-          //     fen:
-          //       this.game.fen() != this.state.fen
-          //         ? this.game.fen()
-          //         : this.state.fen,
-          //     history: this.game.history({verbose: true}),
-          //     move: res.move ? res.move : this.state.move,
-          //     squareStyles:
-          //       localStorage.getItem('hiMove') !== 'false'
-          //         ? squareStyling({
-          //             pieceSquare,
-          //             history: this.game.history({verbose: true}),
-          //           })
-          //         : this.state.squareStyles,
-          //   }));
-          //   if (move) {
-          //     this.interval = setInterval(
-          //       () => {
-          //         this.sendMessage(true);
-          //       },
-          //       this.timeToSendUser <= 10000 ? 1000 : 5000,
-          //     );
-          //   }
-          //   localStorage.setItem(
-          //     'game',
-          //     JSON.stringify({
-          //       fen:
-          //         this.game.fen() != this.state.fen
-          //           ? this.game.fen()
-          //           : this.state.fen,
-          //       history: this.game.history({verbose: true}),
-          //       move: res.move ? res.move : this.state.move,
-          //       orientation: this.state.orientation,
-          //       room: this.state.room,
-          //     }),
-          //   );
-          //   if (localStorage.getItem('sound') !== 'false' && playing && move)
-          //     this.audio.play();
-          // }
+          if (data.step) {
+            // this.props.Opponent(res.opponent_id);
+            // dispatch(setOrientation());
+            // this.props.setOrientation(data.step);
+            // this.setState(() => ({
+            //   orientation: res.step,
+            //   room: res.room,
+            //   fen: 'start',
+            // }));
+            dispatch(setOrientation(data.step));
+            dispatch(setRoom(data.room));
+            dispatch(setFen('start'));
+            dispatch(startEnd());
+            dispatch(isPlaying());
+            // localStorage.setItem('opponent', res.opponent_id);
+            dispatch(setFirstTurn(true));
+            dispatch(setOpponentFirstTurn(true));
+            dispatch(setIsSync());
+            if (data.step == 'write') {
+              dispatch(userTurn());
+              dispatch(opponentStopTurn());
+              // this.interval = setInterval(
+              //   () => {
+              //     this.sendMessage(true);
+              //   },
+              //   this.timeToSendUser <= 10000 ? 1000 : 5000,
+              // );
+            } else if (data.step == 'black') {
+              dispatch(userTurnStop());
+              dispatch(opponentTurn());
+            }
+          } else {
+            if (data.room > 0 && data.orientation && data.fen != fen) {
+              // clearInterval(this.interval);
+              dispatch(userTurn());
+              dispatch(opponentStopTurn());
+            }
+            // if (data.user_time && data.opponent_time) {
+            // localStorage.setItem('response_user_time', res.opponent_time);
+            // localStorage.setItem('response_opponent_time', res.user_time);
+            // dispatch(needRerender(true));
+            // let turn = this.game.turn() == 'w' ? 'write' : 'black';
+            // if (this.state.orientation != turn) {
+            //   dispatch(userTurnStop());
+            //   dispatch(opponentTurn());
+            // }
+            // }
+            //внутриигровой чат
+            // if (res.chat != this.props.chat) {
+            //   this.props.setChat(res.chat);
+            //   this.props.setMessages({
+            //     msg: res.chat,
+            //     name: this.props.opponent.login || this.props.opponent.name,
+            //   });
+            // }
+            //ход
+            let move = '';
+            if (data.move) {
+              if (data.move.san.split('').includes('=')) {
+                //move = this.game.move(data.move.san);
+                move = chessboard.current.move(data.move.san);
+              } else {
+                // move = this.game.move({
+                //   from: data.move.from,
+                //   to: data.move.to,
+                // });
+                if (data.move.from && data.move.to) {
+                  move = chessboard.current.move({
+                    from: data.move.from,
+                    to: data.move.to,
+                  });
+                }
+              }
+            }
+            //   if (move && move.captured) {
+            //     addPiece(
+            //       this.state.orientation,
+            //       this.props.userCaptured,
+            //       this.props.opponentCaptured,
+            //       this.props.setOpponentCount,
+            //       this.props.setUserCount,
+            //       move,
+            //     );
+            //   }
+            //   if (this.game.game_over()) {
+            //     clearInterval(this.interval);
+            //     this.props.isEnd(this.game);
+            //     this.props.userTurnStop();
+            //     this.props.opponentStopTurn();
+            //     let status = getStatus(this.game, this.state.orientation);
+            //     console.log(status);
+            //     this.props.setStatus(status);
+            //     this.props.SaveHistory({
+            //       history: this.game.history({verbose: true}),
+            //       status,
+            //       orientir: this.state.orientation,
+            //     });
+            //     this.props.isNotPlaying();
+            //   }
+            //   this.props.setHistory(this.game.history({verbose: true}));
+            //   this.setState(({pieceSquare}) => ({
+            //     fen:
+            //       this.game.fen() != this.state.fen
+            //         ? this.game.fen()
+            //         : this.state.fen,
+            //     history: this.game.history({verbose: true}),
+            //     move: res.move ? res.move : this.state.move,
+            //     squareStyles:
+            //       localStorage.getItem('hiMove') !== 'false'
+            //         ? squareStyling({
+            //             pieceSquare,
+            //             history: this.game.history({verbose: true}),
+            //           })
+            //         : this.state.squareStyles,
+            //   }));
+            //   if (move) {
+            //     this.interval = setInterval(
+            //       () => {
+            //         this.sendMessage(true);
+            //       },
+            //       this.timeToSendUser <= 10000 ? 1000 : 5000,
+            //     );
+            //   }
+            //   localStorage.setItem(
+            //     'game',
+            //     JSON.stringify({
+            //       fen:
+            //         this.game.fen() != this.state.fen
+            //           ? this.game.fen()
+            //           : this.state.fen,
+            //       history: this.game.history({verbose: true}),
+            //       move: res.move ? res.move : this.state.move,
+            //       orientation: this.state.orientation,
+            //       room: this.state.room,
+            //     }),
+            //   );
+            //   if (localStorage.getItem('sound') !== 'false' && playing && move)
+            //     this.audio.play();
+          }
         }
       }
     }
@@ -334,5 +367,5 @@ export const useWebsocket = () => {
     }
   }, [dataToSend]);
 
-  return {websocket, setDataToSend};
+  return {websocket, setDataToSend, chessboard};
 };
