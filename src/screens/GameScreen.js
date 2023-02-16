@@ -16,12 +16,14 @@ import {
   setFen,
   setHistory,
   setMove,
+  setNotQuit,
   setNotSurrender,
   setOrientation,
   setRecentlyChanged,
   setRoom,
   userTurnStop,
 } from '../store/reducers/gameReducer';
+import {useEffect} from 'react';
 
 const GameScreen = () => {
   const {setDataToSend, chessboard} = useContext(WebsocketContext);
@@ -32,6 +34,8 @@ const GameScreen = () => {
   const orientation = useSelector(state => state.game.orientation);
   const history = useSelector(state => state.game.history);
   const playing = useSelector(state => state.game.playing);
+  const wantDraw = useSelector(state => state.game.wantDraw);
+  const fen = useSelector(state => state.game.fen);
 
   const intervals = [
     {label: '1 мин', value: '1'},
@@ -62,7 +66,6 @@ const GameScreen = () => {
       {
         text: 'Да',
         onPress: () => {
-          setSearchStarted(false);
           dispatch(isNotPlaying());
           setDataToSend(JSON.stringify({type: 'gave up'}));
           dispatch(userTurnStop());
@@ -91,9 +94,13 @@ const GameScreen = () => {
     setSearchStarted(false);
   };
 
-  const handleDraw = () => {};
+  const handleDraw = () => {
+    setDataToSend(JSON.stringify({type: 'disperse'}));
+    dispatch(setNotQuit());
+  };
 
   const onMove = e => {
+    console.log(e);
     dispatch(setFen(e.state.fen));
     dispatch(setMove(e.move));
     // dispatch(setHistory())
@@ -121,6 +128,30 @@ const GameScreen = () => {
       dispatch(setMove({}));
     }
   };
+
+  useEffect(() => {
+    setSearchStarted(false);
+  }, [playing]);
+
+  useEffect(() => {
+    if (wantDraw) {
+      Alert.alert('Вам предложили ничью', 'Согласиться?', [
+        {text: 'Нет', style: 'cancel', onPress: () => {}},
+        {
+          text: 'Да',
+          onPress: () => {
+            setDataToSend(JSON.stringify({type: 'disperse_yes'}));
+            dispatch(setFen(''));
+            dispatch(setRoom(0));
+            dispatch(setMove({}));
+            dispatch(setOrientation(''));
+            dispatch(setHistory([]));
+            dispatch(isNotPlaying());
+          },
+        },
+      ]);
+    }
+  }, [wantDraw]);
 
   return (
     <View style={[GlobalStyles.container, GlobalStyles.flexJustifyCenter]}>

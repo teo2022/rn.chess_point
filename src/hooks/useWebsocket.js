@@ -1,4 +1,4 @@
-import {View, Text} from 'react-native';
+import {View, Text, Alert} from 'react-native';
 import React from 'react';
 import {useRef} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,16 +7,20 @@ import {useState} from 'react';
 import {useEffect} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import {
+  isNotPlaying,
   isPlaying,
   needRerender,
   opponentStopTurn,
   opponentTurn,
   setFen,
   setFirstTurn,
+  setHistory,
   setIsSync,
+  setMove,
   setOpponentFirstTurn,
   setOrientation,
   setRoom,
+  setWantDraw,
   startEnd,
   userTurn,
   userTurnStop,
@@ -166,13 +170,13 @@ export const useWebsocket = () => {
         }
         //ничья
         else if (data.info == 'disperse') {
-          // this.props.setWantDraw();
+          dispatch(setWantDraw());
         }
         //согласье на ничью
         else if (data.info == 'disperse_yes') {
           // this.props.isEnd(this.game);
-          // this.props.userTurnStop();
-          // this.props.opponentStopTurn();
+          dispatch(userTurnStop());
+          dispatch(opponentStopTurn());
           // let status = 'draw forced';
           // this.props.setStatus(status);
           // this.props.SaveHistory({
@@ -180,40 +184,29 @@ export const useWebsocket = () => {
           //   status,
           //   orientir: this.state.orientation,
           // });
-          // this.props.isNotPlaying();
+          dispatch(isNotPlaying());
           // this.props.setHistory(this.game.history({verbose: true}));
-          // this.setState(() => ({
-          //   fen:
-          //     this.game.fen() != this.state.fen
-          //       ? this.game.fen()
-          //       : this.state.fen,
-          //   history: this.game.history({verbose: true}),
-          //   move: {},
-          // }));
+          dispatch(setFen(''));
+          dispatch(setHistory([]));
+          dispatch(setMove({}));
+          dispatch(setOrientation(''));
+          Alert.alert('Ничья', 'Игрок согласился на ничью');
         }
         //игрок сдался
         else if (data.info == 'gave up') {
-          // this.props.isEnd(this.game);
-          // this.props.userTurnStop();
-          // this.props.opponentStopTurn();
-          // let status = 'win forced';
-          // this.props.setStatus(status);
+          dispatch(userTurnStop());
+          dispatch(opponentStopTurn());
           // this.props.SaveHistory({
           //   history: this.game.history({verbose: true}),
           //   status,
           //   orientir: this.state.orientation,
           // });
-          // this.props.isNotPlaying();
+          dispatch(isNotPlaying());
           // this.props.setHistory(this.game.history({verbose: true}));
-          // this.game.reset();
-          // this.setState(() => ({
-          //   fen:
-          //     this.game.fen() != this.state.fen
-          //       ? this.game.fen()
-          //       : this.state.fen,
-          //   history: this.game.history({verbose: true}),
-          //   move: {},
-          // }));
+          chessboard.current.resetBoard();
+          dispatch(setMove({}));
+          dispatch(setFen(''));
+          Alert.alert('Победа', 'Игрок сдался');
         } else {
           // let res = response;
           //начало партии
@@ -276,8 +269,11 @@ export const useWebsocket = () => {
             let move = '';
             if (data.move) {
               if (data.move.san.split('').includes('=')) {
-                //move = this.game.move(data.move.san);
-                move = chessboard.current.move(data.move.san);
+                move = chessboard.current.move({
+                  ...data.move,
+                  promotion:
+                    data.move.san[data.move.san.length - 1].toLowerCase(),
+                });
               } else {
                 // move = this.game.move({
                 //   from: data.move.from,
