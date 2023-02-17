@@ -47,13 +47,9 @@ const initialState = {
   timeToSendOp: 0,
   timeToSendUser: 0,
   dropSquareStyle: {},
-  // custom square styles
   squareStyles: {},
-  // square with the currently clicked piece
   pieceSquare: '',
-  // currently clicked square
   square: '',
-  // array of past game moves
   history: [],
   recentlyChanged: true,
   connected: false,
@@ -72,6 +68,9 @@ export const gameSlice = createSlice({
     startSearch: state => {
       state.loading = true;
       state.start = true;
+    },
+    resetMessages: state => {
+      state.messages = [];
     },
     startEnd: state => {
       state.start = false;
@@ -355,6 +354,7 @@ export const {
   setIsSync,
   setTimeToSendOp,
   setTimeToSendUser,
+  resetMessages,
 } = gameSlice.actions;
 
 export default gameSlice.reducer;

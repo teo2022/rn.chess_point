@@ -1,4 +1,4 @@
-import {View, Text, Alert} from 'react-native';
+import {View, Text, Alert, FlatList} from 'react-native';
 import React from 'react';
 import Chessboard from 'react-native-chessboard';
 import Button from '../components/Button';
@@ -13,22 +13,28 @@ import {
   isNotPlaying,
   opponentStopTurn,
   opponentTurn,
+  resetMessages,
   setFen,
   setHistory,
+  setMessages,
   setMove,
   setNotQuit,
   setNotSurrender,
   setOrientation,
   setRecentlyChanged,
   setRoom,
+  setStatus,
   userTurnStop,
 } from '../store/reducers/gameReducer';
 import {useEffect} from 'react';
+import Input from '../components/Input';
+import {useRef} from 'react';
 
 const GameScreen = () => {
   const {setDataToSend, chessboard} = useContext(WebsocketContext);
   const [time, setTime] = useState('10');
   const [searchStarted, setSearchStarted] = useState(false);
+  const [message, setMessage] = useState('');
   const dispatch = useDispatch();
   const room = useSelector(state => state.game.room);
   const orientation = useSelector(state => state.game.orientation);
@@ -36,6 +42,8 @@ const GameScreen = () => {
   const playing = useSelector(state => state.game.playing);
   const wantDraw = useSelector(state => state.game.wantDraw);
   const fen = useSelector(state => state.game.fen);
+  const status = useSelector(state => state.game.status);
+  const messages = useSelector(state => state.game.messages);
 
   const intervals = [
     {label: '1 мин', value: '1'},
@@ -99,38 +107,97 @@ const GameScreen = () => {
     dispatch(setNotQuit());
   };
 
+  const handleGameOver = (state, opponent = false) => {
+    setDataToSend(JSON.stringify({type: 'finish'}));
+    if (state.in_check) {
+      if (opponent) {
+        dispatch(setStatus('gave up'));
+      } else {
+        dispatch(setStatus('win'));
+      }
+    } else if (state.in_checkmate) {
+      if (opponent) {
+        dispatch(setStatus('gave up'));
+      } else {
+        dispatch(setStatus('win'));
+      }
+    } else if (state.in_draw) {
+      dispatch(setStatus('draw'));
+    } else if (state.in_stalemate) {
+      dispatch(setStatus('stalemate'));
+    } else if (state.in_threefold_repetition) {
+      dispatch(setStatus('draw'));
+    } else if (state.insufficient_material) {
+      dispatch(setStatus('draw'));
+    }
+    dispatch(opponentStopTurn());
+    dispatch(userTurnStop());
+    dispatch(isNotPlaying());
+    dispatch(setFen(''));
+    dispatch(setHistory([]));
+    dispatch(setMove({}));
+    dispatch(setRoom(0));
+    dispatch(setOrientation(''));
+    chessboard.current.resetBoard();
+  };
+
   const onMove = e => {
+    console.log(orientation);
     console.log(e);
     dispatch(setFen(e.state.fen));
     dispatch(setMove(e.move));
     // dispatch(setHistory())
     if (room > 0 && orientation) {
-      dispatch(userTurnStop());
-      dispatch(opponentTurn());
-      setDataToSend(
-        JSON.stringify({
-          type: 'his',
-          content: JSON.stringify({
-            history: history,
-            fen: e.state.fen,
-            room: room,
-            orientation: orientation,
-            move: e.move,
-            // user_time: this.props.disconnected
-            //   ? String(this.props.timeToSendUser)
-            //   : '',
-            // opponent_time: this.props.disconnected
-            //   ? String(this.props.timeToSendOp)
-            //   : '',
+      if (orientation[0].toLowerCase() !== e.state.turn) {
+        dispatch(userTurnStop());
+        dispatch(opponentTurn());
+        setDataToSend(
+          JSON.stringify({
+            type: 'his',
+            content: JSON.stringify({
+              history: history,
+              fen: e.state.fen,
+              room: room,
+              orientation: orientation,
+              move: e.move,
+              // user_time: this.props.disconnected
+              //   ? String(this.props.timeToSendUser)
+              //   : '',
+              // opponent_time: this.props.disconnected
+              //   ? String(this.props.timeToSendOp)
+              //   : '',
+            }),
           }),
-        }),
-      );
-      dispatch(setMove({}));
+        );
+        dispatch(setMove({}));
+        if (e.state.game_over) {
+          handleGameOver(e.state);
+        }
+      } else {
+        if (e.state.game_over) {
+          handleGameOver(e.state, true);
+        }
+      }
     }
+  };
+
+  const handleSendMessage = () => {
+    setDataToSend(
+      JSON.stringify({
+        type: 'chat',
+        content: JSON.stringify({
+          room,
+          chat: message,
+        }),
+      }),
+    );
+    dispatch(setMessages({name: 'Вы', chat: message}));
+    setMessage('');
   };
 
   useEffect(() => {
     setSearchStarted(false);
+    dispatch(resetMessages());
   }, [playing]);
 
   useEffect(() => {
@@ -153,6 +220,29 @@ const GameScreen = () => {
     }
   }, [wantDraw]);
 
+  useEffect(() => {
+    if (status) {
+      switch (status) {
+        case 'win':
+          Alert.alert('Победа', 'Мат!');
+          break;
+        case 'draw':
+          Alert.alert('Ничья');
+          break;
+        case 'stalemate':
+          Alert.alert('Пат');
+          break;
+        case 'gave up':
+          Alert.alert('Проигрыш', 'Вам поставили мат');
+          break;
+        default:
+          Alert.alert('Игра окончена');
+          break;
+      }
+      dispatch(setStatus(''));
+    }
+  }, [status]);
+
   return (
     <View style={[GlobalStyles.container, GlobalStyles.flexJustifyCenter]}>
       <View style={[GlobalStyles.mb10, {alignSelf: 'center'}]}>
@@ -165,6 +255,46 @@ const GameScreen = () => {
           </View>
           <View>
             <Button title="Сдаться" handleClick={handleGiveUp} />
+          </View>
+          <Text
+            style={[
+              GlobalStyles.textBlack,
+              GlobalStyles.mb10,
+              GlobalStyles.fontBold,
+              GlobalStyles.fontSize18,
+              GlobalStyles.mt10,
+            ]}>
+            Чат
+          </Text>
+          <FlatList
+            inverted
+            data={[...messages].reverse()}
+            keyExtractor={(item, index) => index}
+            renderItem={({item}) => {
+              return (
+                <View>
+                  <Text
+                    style={[
+                      GlobalStyles.textBlack,
+                      GlobalStyles.fontBold,
+                      GlobalStyles.mb5,
+                    ]}>
+                    {item.name}:
+                  </Text>
+                  <Text style={[GlobalStyles.textBlack]}>{item.chat}</Text>
+                </View>
+              );
+            }}
+            style={{height: 120, position: 'relative'}}
+          />
+          <View style={[GlobalStyles.mt10]}>
+            <Input
+              placeholder="Введите сообщение"
+              value={message}
+              onChange={val => setMessage(val)}
+              returnKeyType="done"
+              onKeyPress={handleSendMessage}
+            />
           </View>
         </View>
       ) : (

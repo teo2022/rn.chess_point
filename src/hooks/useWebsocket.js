@@ -16,10 +16,12 @@ import {
   setFirstTurn,
   setHistory,
   setIsSync,
+  setMessages,
   setMove,
   setOpponentFirstTurn,
   setOrientation,
   setRoom,
+  setStatus,
   setWantDraw,
   startEnd,
   userTurn,
@@ -42,7 +44,6 @@ export const useWebsocket = () => {
       console.log(event);
     };
     websocket.current.onmessage = event => {
-      console.log(event);
       try {
         setData(JSON.parse(event.data));
       } catch (error) {
@@ -54,6 +55,22 @@ export const useWebsocket = () => {
     };
   };
 
+  const handleGameOver = state => {
+    if (state.in_check) {
+      return 'gave up';
+    } else if (state.in_checkmate) {
+      return 'gave up';
+    } else if (state.in_draw) {
+      return 'draw';
+    } else if (state.in_stalemate) {
+      return 'stalemate';
+    } else if (state.in_threefold_repetition) {
+      return 'draw';
+    } else if (state.insufficient_material) {
+      return 'draw';
+    }
+  };
+
   useEffect(() => {
     if (auth) {
       connect();
@@ -62,7 +79,6 @@ export const useWebsocket = () => {
 
   useEffect(() => {
     console.log(data);
-    console.log(typeof data);
     if (data) {
       if (data.content !== '/A new socket has connected.') {
         //синхронизация таймеров
@@ -258,13 +274,14 @@ export const useWebsocket = () => {
             // }
             // }
             //внутриигровой чат
-            // if (res.chat != this.props.chat) {
-            //   this.props.setChat(res.chat);
-            //   this.props.setMessages({
-            //     msg: res.chat,
-            //     name: this.props.opponent.login || this.props.opponent.name,
-            //   });
-            // }
+            if (data.chat) {
+              dispatch(
+                setMessages({
+                  chat: data.chat,
+                  name: 'Соперник',
+                }),
+              );
+            }
             //ход
             let move = '';
             if (data.move) {
@@ -275,10 +292,6 @@ export const useWebsocket = () => {
                     data.move.san[data.move.san.length - 1].toLowerCase(),
                 });
               } else {
-                // move = this.game.move({
-                //   from: data.move.from,
-                //   to: data.move.to,
-                // });
                 if (data.move.from && data.move.to) {
                   move = chessboard.current.move({
                     from: data.move.from,
@@ -297,21 +310,29 @@ export const useWebsocket = () => {
             //       move,
             //     );
             //   }
-            //   if (this.game.game_over()) {
+            // const gameState = chessboard.current.getState();
+            // console.log('STATE');
+            // console.log(gameState);
+            // if (gameState.game_over) {
             //     clearInterval(this.interval);
             //     this.props.isEnd(this.game);
-            //     this.props.userTurnStop();
-            //     this.props.opponentStopTurn();
-            //     let status = getStatus(this.game, this.state.orientation);
-            //     console.log(status);
-            //     this.props.setStatus(status);
+            // dispatch(userTurnStop());
+            // dispatch(opponentStopTurn());
+            // let status = handleGameOver(gameState);
+            // console.log(status);
+            // dispatch(setStatus(status));
             //     this.props.SaveHistory({
             //       history: this.game.history({verbose: true}),
             //       status,
             //       orientir: this.state.orientation,
             //     });
-            //     this.props.isNotPlaying();
-            //   }
+            // dispatch(isNotPlaying());
+            // chessboard.current.resetBoard();
+            // dispatch(setFen(''));
+            // dispatch(setOrientation(''));
+            // dispatch(setRoom(0));
+            // dispatch(setMove({}));
+            //}
             //   this.props.setHistory(this.game.history({verbose: true}));
             //   this.setState(({pieceSquare}) => ({
             //     fen:
