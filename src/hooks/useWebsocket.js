@@ -7,15 +7,21 @@ import {useState} from 'react';
 import {useEffect} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import {
+  getOpponentInfo,
+  isDisconnected,
+  isNotDisconnected,
   isNotPlaying,
   isPlaying,
+  isReloaded,
   needRerender,
   opponentStopTurn,
   opponentTurn,
+  setClosed,
   setFen,
   setFirstTurn,
   setHistory,
   setIsSync,
+  setIsUserTurn,
   setMessages,
   setMove,
   setOpponentFirstTurn,
@@ -36,6 +42,13 @@ export const useWebsocket = () => {
   const dispatch = useDispatch();
   const auth = useSelector(state => state.user.auth);
   const fen = useSelector(state => state.game.fen);
+  const orientation = useSelector(state => state.game.orientation);
+  const history = useSelector(state => state.game.history);
+  const room = useSelector(state => state.game.room);
+  const move = useSelector(state => state.game.move);
+  const opponent = useSelector(state => state.game.opponent);
+
+  const time = useRef();
 
   const connect = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -71,14 +84,53 @@ export const useWebsocket = () => {
     }
   };
 
-  useEffect(() => {
-    if (auth) {
-      connect();
-    }
-  }, [auth]);
+  const handleClosing = async () => {
+    // clearInterval(this.interval);
+    // this.props.isEnd(this.game);
+    // this.props.userTurnStop();
+    // this.props.opponentStopTurn();
+    // this.game.reset();
+    // let status = 'win connect';
+    // this.props.setStatus(status);
+    // this.props.SaveHistory({
+    //   history: this.game.history({ verbose: true }),
+    //   status,
+    //   orientir: this.state.orientation,
+    // });
+    // this.setState(() => ({
+    //   fen: '',
+    //   dropSquareStyle: {},
+    //   squareStyles: {},
+    //   pieceSquare: '',
+    //   square: '',
+    //   history: [],
+    //   token: localStorage.getItem('token'),
+    //   room: 0,
+    //   orientation: '',
+    //   move: {},
+    // }));
+    // this.props.isNotPlaying();
+    // this.props.isNotDisconnected();
+    // this.props.setClosed();
+    dispatch(isNotDisconnected());
+    dispatch(userTurnStop());
+    dispatch(opponentStopTurn());
+    chessboard.current.resetBoard();
+    dispatch(setStatus('win connect'));
+    dispatch(setFen(''));
+    dispatch(setHistory([]));
+    dispatch(setRoom(0));
+    dispatch(setOrientation(''));
+    dispatch(setMove({}));
+    dispatch(isNotPlaying());
+    dispatch(setClosed());
+    await AsyncStorage.removeItem('move');
+    await AsyncStorage.removeItem('fen');
+    await AsyncStorage.removeItem('room');
+    await AsyncStorage.removeItem('opponent');
+  };
 
-  useEffect(() => {
-    console.log(data);
+  const handleData = async data => {
     if (data) {
       if (data.content !== '/A new socket has connected.') {
         //синхронизация таймеров
@@ -98,71 +150,112 @@ export const useWebsocket = () => {
           // turn === this.state.orientation
           //   ? this.props.userTurn()
           //   : this.props.opponentTurn();
+          clearTimeout(time.current);
+          dispatch(setIsUserTurn(false));
+          dispatch(isNotDisconnected());
+          setDataToSend(
+            JSON.stringify({
+              type: 'his',
+              content: JSON.stringify({
+                history,
+                fen,
+                room,
+                orientation,
+                move,
+                // user_time: this.props.disconnected
+                //   ? String(this.props.timeToSendUser)
+                //   : '',
+                // opponent_time: this.props.disconnected
+                //   ? String(this.props.timeToSendOp)
+                //   : '',
+              }),
+            }),
+          );
+          const turn =
+            chessboard.current.getState().turn === 'w' ? 'write' : 'black';
+          turn === orientation
+            ? dispatch(userTurn())
+            : dispatch(opponentTurn());
         }
         //переподключение
-        // if (
-        //   data.content == 'Game' &&
-        //   JSON.parse(localStorage.getItem('game'))
-        // ) {
-        //   // let game = JSON.parse(localStorage.getItem('game'));
-        //   // console.log(game);
-        //   // this.game.load(game.fen);
-        //   // this.props.isPlaying();
-        //   // this.props.Opponent(localStorage.getItem('opponent'));
-        //   // if (game.room > 0 && game.orientation && game.fen != this.state.fen) {
-        //   //   this.props.userTurn();
-        //   //   this.props.opponentStopTurn();
-        //   // }
-        //   // let move = game.move
-        //   //   ? this.game.move({
-        //   //       from: game.move.from,
-        //   //       to: game.move.to,
-        //   //     })
-        //   //   : '';
-        //   // if (move && move.captured) {
-        //   //   addPiece(
-        //   //     this.state.orientation,
-        //   //     this.props.userCaptured,
-        //   //     this.props.opponentCaptured,
-        //   //     this.props.setOpponentCount,
-        //   //     this.props.setUserCount,
-        //   //     move,
-        //   //   );
-        //   // }
-        //   // if (this.game.game_over()) {
-        //   //   this.props.isEnd(this.game);
-        //   //   this.props.userTurnStop();
-        //   //   this.props.opponentStopTurn();
-        //   //   let status = getStatus(this.game, this.state.orientation);
-        //   //   console.log(status);
-        //   //   this.props.setStatus(status);
-        //   //   this.props.SaveHistory({
-        //   //     history: this.game.history({verbose: true}),
-        //   //     status,
-        //   //     orientir: this.state.orientation,
-        //   //   });
-        //   //   this.props.isNotPlaying();
-        //   // }
-        //   // this.props.setHistory(this.game.history({verbose: true}));
-        //   // this.setState(() => ({
-        //   //   ...game,
-        //   // }));
-        //   // localStorage.setItem(
-        //   //   'game',
-        //   //   JSON.stringify({
-        //   //     fen:
-        //   //       this.game.fen() != this.state.fen
-        //   //         ? this.game.fen()
-        //   //         : this.state.fen,
-        //   //     history: this.game.history({verbose: true}),
-        //   //     move: game.move ? game.move : this.state.move,
-        //   //     orientation: this.state.orientation,
-        //   //     room: this.state.room,
-        //   //   }),
-        //   // );
-        //   // this.props.userTurn();
-        //   // this.props.opponentStopTurn();
-        // }
+        if (data.content == 'Game') {
+          //   // let game = JSON.parse(localStorage.getItem('game'));
+          //   // console.log(game);
+          //   // this.game.load(game.fen);
+          //   // this.props.isPlaying();
+          //   // this.props.Opponent(localStorage.getItem('opponent'));
+          //   // if (game.room > 0 && game.orientation && game.fen != this.state.fen) {
+          //   //   this.props.userTurn();
+          //   //   this.props.opponentStopTurn();
+          //   // }
+          //   // let move = game.move
+          //   //   ? this.game.move({
+          //   //       from: game.move.from,
+          //   //       to: game.move.to,
+          //   //     })
+          //   //   : '';
+          //   // if (move && move.captured) {
+          //   //   addPiece(
+          //   //     this.state.orientation,
+          //   //     this.props.userCaptured,
+          //   //     this.props.opponentCaptured,
+          //   //     this.props.setOpponentCount,
+          //   //     this.props.setUserCount,
+          //   //     move,
+          //   //   );
+          //   // }
+          //   // if (this.game.game_over()) {
+          //   //   this.props.isEnd(this.game);
+          //   //   this.props.userTurnStop();
+          //   //   this.props.opponentStopTurn();
+          //   //   let status = getStatus(this.game, this.state.orientation);
+          //   //   console.log(status);
+          //   //   this.props.setStatus(status);
+          //   //   this.props.SaveHistory({
+          //   //     history: this.game.history({verbose: true}),
+          //   //     status,
+          //   //     orientir: this.state.orientation,
+          //   //   });
+          //   //   this.props.isNotPlaying();
+          //   // }
+          //   // this.props.setHistory(this.game.history({verbose: true}));
+          //   // this.setState(() => ({
+          //   //   ...game,
+          //   // }));
+          //   // localStorage.setItem(
+          //   //   'game',
+          //   //   JSON.stringify({
+          //   //     fen:
+          //   //       this.game.fen() != this.state.fen
+          //   //         ? this.game.fen()
+          //   //         : this.state.fen,
+          //   //     history: this.game.history({verbose: true}),
+          //   //     move: game.move ? game.move : this.state.move,
+          //   //     orientation: this.state.orientation,
+          //   //     room: this.state.room,
+          //   //   }),
+          //   // );
+          //   // this.props.userTurn();
+          //   // this.props.opponentStopTurn();
+          dispatch(isPlaying());
+          const storedFen = await AsyncStorage.getItem('fen');
+          const storedRoom = await AsyncStorage.getItem('room');
+          const storedTurn = await AsyncStorage.getItem('turn');
+          const storedMove = await AsyncStorage.getItem('move');
+          const storedOpponent = await AsyncStorage.getItem('opponent');
+          chessboard.current.fen = storedFen;
+          dispatch(setRoom(Number(storedRoom)));
+          dispatch(setOrientation(storedTurn));
+          dispatch(setFen(storedFen));
+          const mv = JSON.parse(storedMove);
+          if (mv && mv.from && mv.to) {
+            chessboard.current.move(mv);
+          }
+          dispatch(getOpponentInfo(storedOpponent));
+          dispatch(userTurn());
+          dispatch(opponentStopTurn());
+          dispatch(isReloaded(true));
+        }
         //игрок отключился
         if (data.info == 'websocket: close 1001 (going away)') {
           // let turn = this.game.turn();
@@ -181,6 +274,16 @@ export const useWebsocket = () => {
           //   },
           //   this.timeToSendUser <= 10000 ? 1000 : 5000,
           // );
+          const turn = chessboard.current.getState().turn;
+          const color = turn == 'w' ? 'write' : 'black';
+          if (color === orientation) {
+            dispatch(setIsUserTurn(true));
+            return;
+          }
+          dispatch(isDisconnected());
+          dispatch(userTurnStop());
+          dispatch(opponentStopTurn());
+          time.current = setTimeout(handleClosing, 30000);
         } else if (data == 'finish') {
           // console.log('stop');
         }
@@ -240,10 +343,12 @@ export const useWebsocket = () => {
             dispatch(setFen('start'));
             dispatch(startEnd());
             dispatch(isPlaying());
-            // localStorage.setItem('opponent', res.opponent_id);
             dispatch(setFirstTurn(true));
             dispatch(setOpponentFirstTurn(true));
             dispatch(setIsSync());
+            await AsyncStorage.setItem('room', String(data.room));
+            await AsyncStorage.setItem('turn', data.step);
+            await AsyncStorage.setItem('opponent', String(data.opponent_id));
             if (data.step == 'write') {
               dispatch(userTurn());
               dispatch(opponentStopTurn());
@@ -257,6 +362,7 @@ export const useWebsocket = () => {
               dispatch(userTurnStop());
               dispatch(opponentTurn());
             }
+            dispatch(getOpponentInfo(data.opponent_id));
           } else {
             if (data.room > 0 && data.orientation && data.fen != fen) {
               // clearInterval(this.interval);
@@ -278,7 +384,7 @@ export const useWebsocket = () => {
               dispatch(
                 setMessages({
                   chat: data.chat,
-                  name: 'Соперник',
+                  name: opponent?.name_user || 'Противник',
                 }),
               );
             }
@@ -376,6 +482,17 @@ export const useWebsocket = () => {
         }
       }
     }
+  };
+
+  useEffect(() => {
+    if (auth) {
+      connect();
+    }
+  }, [auth]);
+
+  useEffect(() => {
+    console.log(data);
+    handleData(data);
   }, [data]);
 
   useEffect(() => {
@@ -384,5 +501,5 @@ export const useWebsocket = () => {
     }
   }, [dataToSend]);
 
-  return {websocket, setDataToSend, chessboard};
+  return {websocket, setDataToSend, chessboard, time};
 };

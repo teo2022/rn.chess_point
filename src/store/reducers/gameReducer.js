@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {createAsyncThunk, createSlice} from '@reduxjs/toolkit';
+import {GameAPI} from '../../api/gameAPI';
 
 const initialState = {
   start: false,
@@ -59,12 +60,34 @@ const initialState = {
   draw: false,
   isUserTurn: false,
   pawn: '',
+  reloaded: false,
 };
+
+export const getOpponentInfo = createAsyncThunk(
+  'game/getOpponentInfo',
+  async (id, thunkAPI) => {
+    const response = await GameAPI.opponentInfo(id);
+    console.log(response);
+    return response;
+  },
+);
+
+export const saveGameHistory = createAsyncThunk(
+  'game/saveGameHistory',
+  async (data, thunkAPI) => {
+    const response = await GameAPI.saveHistory(data);
+    console.log(response);
+    return response;
+  },
+);
 
 export const gameSlice = createSlice({
   name: 'game',
   initialState,
   reducers: {
+    isReloaded: (state, action) => {
+      state.reloaded = action.payload;
+    },
     startSearch: state => {
       state.loading = true;
       state.start = true;
@@ -286,11 +309,22 @@ export const gameSlice = createSlice({
       state.pawn = action.payload;
     },
   },
-  extraReducers: builder => {},
+  extraReducers: builder => {
+    builder.addCase(getOpponentInfo.fulfilled, (state, action) => {
+      if (action.payload.status) {
+        state.opponent = action.payload.data;
+      }
+    });
+    builder.addCase(saveGameHistory.fulfilled, (state, action) => {
+      if (action.payload.status) {
+      }
+    });
+  },
 });
 
 // Action creators are generated for each case reducer function
 export const {
+  isReloaded,
   setSquareStyles,
   setPieceSquare,
   setSquare,

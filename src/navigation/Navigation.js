@@ -14,13 +14,13 @@ const UnauthStack = createNativeStackNavigator();
 
 const Navigation = () => {
   const {loading, auth} = useSelector(state => state.user);
-  const {websocket, setDataToSend, chessboard} = useWebsocket();
+  const {websocket, setDataToSend, chessboard, time} = useWebsocket();
 
   return (
     <NavigationContainer>
       {auth ? (
         <WebsocketContext.Provider
-          value={{websocket, setDataToSend, chessboard}}>
+          value={{websocket, setDataToSend, chessboard, time}}>
           <AuthStack.Navigator initialRouteName="Game">
             <AuthStack.Screen
               name="Game"

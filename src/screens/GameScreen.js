@@ -10,12 +10,16 @@ import {GlobalStyles} from '../constants/globalStyles';
 import {useDispatch, useSelector} from 'react-redux';
 import {
   isDefeat,
+  isDisconnected,
+  isNotDisconnected,
   isNotPlaying,
   opponentStopTurn,
   opponentTurn,
   resetMessages,
+  setClosed,
   setFen,
   setHistory,
+  setIsUserTurn,
   setMessages,
   setMove,
   setNotQuit,
@@ -28,10 +32,11 @@ import {
 } from '../store/reducers/gameReducer';
 import {useEffect} from 'react';
 import Input from '../components/Input';
-import {useRef} from 'react';
+import Modal from '../components/Modal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GameScreen = () => {
-  const {setDataToSend, chessboard} = useContext(WebsocketContext);
+  const {setDataToSend, chessboard, time: timer} = useContext(WebsocketContext);
   const [time, setTime] = useState('10');
   const [searchStarted, setSearchStarted] = useState(false);
   const [message, setMessage] = useState('');
@@ -44,6 +49,11 @@ const GameScreen = () => {
   const fen = useSelector(state => state.game.fen);
   const status = useSelector(state => state.game.status);
   const messages = useSelector(state => state.game.messages);
+  const disconnected = useSelector(state => state.game.disconnected);
+  const isUserTurn = useSelector(state => state.game.isUserTurn);
+  const reloaded = useSelector(state => state.game.reloaded);
+  const opponent = useSelector(state => state.game.opponent);
+  const user = useSelector(state => state.game.user);
 
   const intervals = [
     {label: '1 мин', value: '1'},
@@ -107,7 +117,7 @@ const GameScreen = () => {
     dispatch(setNotQuit());
   };
 
-  const handleGameOver = (state, opponent = false) => {
+  const handleGameOver = async (state, opponent = false) => {
     setDataToSend(JSON.stringify({type: 'finish'}));
     if (state.in_check) {
       if (opponent) {
@@ -139,16 +149,70 @@ const GameScreen = () => {
     dispatch(setRoom(0));
     dispatch(setOrientation(''));
     chessboard.current.resetBoard();
+    await AsyncStorage.removeItem('move');
+    await AsyncStorage.removeItem('fen');
+    await AsyncStorage.removeItem('room');
+    await AsyncStorage.removeItem('opponent');
   };
 
-  const onMove = e => {
-    console.log(orientation);
+  const handleClosing = async () => {
+    // clearInterval(this.interval);
+    // this.props.isEnd(this.game);
+    // this.props.userTurnStop();
+    // this.props.opponentStopTurn();
+    // this.game.reset();
+    // let status = 'win connect';
+    // this.props.setStatus(status);
+    // this.props.SaveHistory({
+    //   history: this.game.history({ verbose: true }),
+    //   status,
+    //   orientir: this.state.orientation,
+    // });
+    // this.setState(() => ({
+    //   fen: '',
+    //   dropSquareStyle: {},
+    //   squareStyles: {},
+    //   pieceSquare: '',
+    //   square: '',
+    //   history: [],
+    //   token: localStorage.getItem('token'),
+    //   room: 0,
+    //   orientation: '',
+    //   move: {},
+    // }));
+    // this.props.isNotPlaying();
+    // this.props.isNotDisconnected();
+    // this.props.setClosed();
+    dispatch(isNotDisconnected());
+    dispatch(userTurnStop());
+    dispatch(opponentStopTurn());
+    chessboard.current.resetBoard();
+    dispatch(setStatus('win connect'));
+    dispatch(setFen(''));
+    dispatch(setHistory([]));
+    dispatch(setRoom(0));
+    dispatch(setOrientation(''));
+    dispatch(setMove({}));
+    dispatch(isNotPlaying());
+    dispatch(setClosed());
+    await AsyncStorage.removeItem('move');
+    await AsyncStorage.removeItem('fen');
+    await AsyncStorage.removeItem('room');
+    await AsyncStorage.removeItem('opponent');
+  };
+
+  const onMove = async e => {
     console.log(e);
     dispatch(setFen(e.state.fen));
     dispatch(setMove(e.move));
     // dispatch(setHistory())
     if (room > 0 && orientation) {
       if (orientation[0].toLowerCase() !== e.state.turn) {
+        if (isUserTurn) {
+          dispatch(isDisconnected());
+          timer.current = setTimeout(handleClosing, 30000);
+          dispatch(setIsUserTurn(false));
+        }
         dispatch(userTurnStop());
         dispatch(opponentTurn());
         setDataToSend(
@@ -169,7 +233,7 @@ const GameScreen = () => {
             }),
           }),
         );
-        dispatch(setMove({}));
+        // dispatch(setMove({}));
         if (e.state.game_over) {
           handleGameOver(e.state);
         }
@@ -178,6 +242,8 @@ const GameScreen = () => {
           handleGameOver(e.state, true);
         }
       }
+      await AsyncStorage.setItem('fen', e.state.fen);
+      await AsyncStorage.setItem('move', JSON.stringify(e.move));
     }
   };
 
@@ -226,6 +292,9 @@ const GameScreen = () => {
         case 'win':
           Alert.alert('Победа', 'Мат!');
           break;
+        case 'win connect':
+          Alert.alert('Победа', 'Соперник отключился');
+          break;
         case 'draw':
           Alert.alert('Ничья');
           break;
@@ -245,9 +314,23 @@ const GameScreen = () => {
 
   return (
     <View style={[GlobalStyles.container, GlobalStyles.flexJustifyCenter]}>
+      {playing && (
+        <View style={[GlobalStyles.mb10]}>
+          <Text style={[GlobalStyles.textBlack]}>
+            {opponent?.name_user || 'Противник'}
+          </Text>
+        </View>
+      )}
       <View style={[GlobalStyles.mb10, {alignSelf: 'center'}]}>
         <Chessboard ref={chessboard} onMove={onMove} />
       </View>
+      {playing && (
+        <View style={[GlobalStyles.mb10]}>
+          <Text style={[GlobalStyles.textBlack]}>
+            {user?.name_user || 'Вы'}
+          </Text>
+        </View>
+      )}
       {playing ? (
         <View>
           <View style={[GlobalStyles.mb10]}>
@@ -316,6 +399,11 @@ const GameScreen = () => {
           </View>
         </View>
       )}
+      <Modal
+        title="Игрок отключился"
+        description="Пожалуйста, подождите..."
+        visible={disconnected}
+      />
     </View>
   );
 };
