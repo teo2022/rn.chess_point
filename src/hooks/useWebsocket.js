@@ -25,9 +25,11 @@ import {
   setMessages,
   setMove,
   setOpponentFirstTurn,
+  setOpponentPieces,
   setOrientation,
   setRoom,
   setStatus,
+  setUserPieces,
   setWantDraw,
   startEnd,
   userTurn,
@@ -244,6 +246,7 @@ export const useWebsocket = () => {
           const storedMove = await AsyncStorage.getItem('move');
           const storedOpponent = await AsyncStorage.getItem('opponent');
           chessboard.current.fen = storedFen;
+          chessboard.current.resetBoard(storedFen);
           dispatch(setRoom(Number(storedRoom)));
           dispatch(setOrientation(storedTurn));
           dispatch(setFen(storedFen));
@@ -309,7 +312,13 @@ export const useWebsocket = () => {
           dispatch(setHistory([]));
           dispatch(setMove({}));
           dispatch(setOrientation(''));
+          dispatch(setUserPieces([]));
+          dispatch(setOpponentPieces([]));
           Alert.alert('Ничья', 'Игрок согласился на ничью');
+          await AsyncStorage.removeItem('move');
+          await AsyncStorage.removeItem('fen');
+          await AsyncStorage.removeItem('room');
+          await AsyncStorage.removeItem('opponent');
         }
         //игрок сдался
         else if (data.info == 'gave up') {
@@ -325,13 +334,18 @@ export const useWebsocket = () => {
           chessboard.current.resetBoard();
           dispatch(setMove({}));
           dispatch(setFen(''));
+          dispatch(setUserPieces([]));
+          dispatch(setOpponentPieces([]));
           Alert.alert('Победа', 'Игрок сдался');
+          await AsyncStorage.removeItem('move');
+          await AsyncStorage.removeItem('fen');
+          await AsyncStorage.removeItem('room');
+          await AsyncStorage.removeItem('opponent');
         } else {
           // let res = response;
           //начало партии
           if (data.step) {
             // this.props.Opponent(res.opponent_id);
-            // dispatch(setOrientation());
             // this.props.setOrientation(data.step);
             // this.setState(() => ({
             //   orientation: res.step,

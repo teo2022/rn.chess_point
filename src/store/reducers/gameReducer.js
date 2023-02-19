@@ -61,6 +61,8 @@ const initialState = {
   isUserTurn: false,
   pawn: '',
   reloaded: false,
+  userPieces: [],
+  opponentPieces: [],
 };
 
 export const getOpponentInfo = createAsyncThunk(
@@ -85,6 +87,12 @@ export const gameSlice = createSlice({
   name: 'game',
   initialState,
   reducers: {
+    setUserPieces: (state, action) => {
+      state.userPieces = action.payload;
+    },
+    setOpponentPieces: (state, action) => {
+      state.opponentPieces = action.payload;
+    },
     isReloaded: (state, action) => {
       state.reloaded = action.payload;
     },
@@ -389,6 +397,8 @@ export const {
   setTimeToSendOp,
   setTimeToSendUser,
   resetMessages,
+  setUserPieces,
+  setOpponentPieces,
 } = gameSlice.actions;
 
 export default gameSlice.reducer;
