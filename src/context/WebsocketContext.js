@@ -5,4 +5,10 @@ export const WebsocketContext = createContext({
   setDataToSend: () => {},
   chessboard: null,
   time: null,
+  opponentTimer: null,
+  setOpponentTimer: () => {},
+  userTimer: null,
+  setUserTimer: () => [],
+  handleUserTimerStart: () => {},
+  handleOpponentTimerStart: () => {},
 });

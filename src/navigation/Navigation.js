@@ -8,19 +8,42 @@ import SignUpScreen from '../screens/SignUpScreen';
 import SplashScreen from '../screens/SplashScreen';
 import {useWebsocket} from '../hooks/useWebsocket';
 import {WebsocketContext} from '../context/WebsocketContext';
+import {memo} from 'react';
 
 const AuthStack = createNativeStackNavigator();
 const UnauthStack = createNativeStackNavigator();
 
 const Navigation = () => {
   const {loading, auth} = useSelector(state => state.user);
-  const {websocket, setDataToSend, chessboard, time} = useWebsocket();
+  const {
+    websocket,
+    setDataToSend,
+    chessboard,
+    time,
+    userTimer,
+    opponentTimer,
+    setOpponentTimer,
+    setUserTimer,
+    handleUserTimerStart,
+    handleOpponentTimerStart,
+  } = useWebsocket();
 
   return (
     <NavigationContainer>
       {auth ? (
         <WebsocketContext.Provider
-          value={{websocket, setDataToSend, chessboard, time}}>
+          value={{
+            websocket,
+            setDataToSend,
+            chessboard,
+            time,
+            userTimer,
+            opponentTimer,
+            setUserTimer,
+            setOpponentTimer,
+            handleUserTimerStart,
+            handleOpponentTimerStart,
+          }}>
           <AuthStack.Navigator initialRouteName="Game">
             <AuthStack.Screen
               name="Game"
@@ -42,4 +65,4 @@ const Navigation = () => {
   );
 };
 
-export default Navigation;
+export default memo(Navigation);

@@ -22,6 +22,7 @@ import {
   opponentStopTurn,
   opponentTurn,
   resetMessages,
+  saveGameHistory,
   setClosed,
   setFen,
   setHistory,
@@ -55,9 +56,20 @@ import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetFlatList,
 } from '@gorhom/bottom-sheet';
+import {memo} from 'react';
 
 const GameScreen = () => {
-  const {setDataToSend, chessboard, time: timer} = useContext(WebsocketContext);
+  const {
+    setDataToSend,
+    chessboard,
+    time: timer,
+    handleOpponentTimerStart,
+    handleUserTimerStart,
+    userTimer,
+    opponentTimer,
+    setUserTimer,
+    setOpponentTimer,
+  } = useContext(WebsocketContext);
   const [time, setTime] = useState('10');
   const [searchStarted, setSearchStarted] = useState(false);
   const [message, setMessage] = useState('');
@@ -74,6 +86,7 @@ const GameScreen = () => {
   const isUserTurn = useSelector(state => state.game.isUserTurn);
   const reloaded = useSelector(state => state.game.reloaded);
   const opponent = useSelector(state => state.game.opponent);
+  const userTurn = useSelector(state => state.game.turn);
   const user = useSelector(state => state.game.user);
   const userPieces = useSelector(state => state.game.userPieces);
   const opponentPieces = useSelector(state => state.game.opponentPieces);
@@ -95,17 +108,20 @@ const GameScreen = () => {
     [],
   );
 
-  const intervals = [
-    {label: '1 мин', value: '1'},
-    {label: '3 мин', value: '3'},
-    {label: '5 мин', value: '5'},
-    {label: '10 мин', value: '10'},
-    {label: '20 мин', value: '20'},
-    {label: '30 мин', value: '30'},
-    {label: '60 мин', alue: '60'},
-  ];
+  const intervals = useMemo(
+    () => [
+      {label: '1 мин', value: '1'},
+      {label: '3 мин', value: '3'},
+      {label: '5 мин', value: '5'},
+      {label: '10 мин', value: '10'},
+      {label: '20 мин', value: '20'},
+      {label: '30 мин', value: '30'},
+      {label: '60 мин', alue: '60'},
+    ],
+    [],
+  );
 
-  const handleSearchStart = () => {
+  const handleSearchStart = useCallback(() => {
     setDataToSend(
       JSON.stringify({
         type: 'search',
@@ -113,9 +129,9 @@ const GameScreen = () => {
       }),
     );
     setSearchStarted(true);
-  };
+  }, []);
 
-  const handleGiveUp = () => {
+  const handleGiveUp = useCallback(() => {
     Alert.alert('Поражение', 'Вы уверены, что хотите сдаться?', [
       {
         text: 'Отмена',
@@ -147,45 +163,61 @@ const GameScreen = () => {
         },
       },
     ]);
-  };
+  }, []);
 
-  const handleSearchCancel = () => {
+  const handleSearchCancel = useCallback(() => {
     setDataToSend(
       JSON.stringify({
         type: 'cancel',
       }),
     );
     setSearchStarted(false);
-  };
+  }, []);
 
-  const handleDraw = () => {
+  const handleDraw = useCallback(() => {
     setDataToSend(JSON.stringify({type: 'disperse'}));
     dispatch(setNotQuit());
-  };
+  }, []);
 
-  const handleGameOver = async (state, opponent = false) => {
+  const handleGameOver = useCallback(async (state, opponent = false) => {
     setDataToSend(JSON.stringify({type: 'finish'}));
+    let st = '';
     if (state.in_check) {
       if (opponent) {
         dispatch(setStatus('gave up'));
+        st = 'gave up';
       } else {
         dispatch(setStatus('win'));
+        st = 'win';
       }
     } else if (state.in_checkmate) {
       if (opponent) {
         dispatch(setStatus('gave up'));
+        st = 'gave up';
       } else {
         dispatch(setStatus('win'));
+        st = 'win';
       }
     } else if (state.in_draw) {
       dispatch(setStatus('draw'));
+      st = 'draw';
     } else if (state.in_stalemate) {
       dispatch(setStatus('stalemate'));
+      st = 'stalemate';
     } else if (state.in_threefold_repetition) {
       dispatch(setStatus('draw'));
+      st = 'draw';
     } else if (state.insufficient_material) {
       dispatch(setStatus('draw'));
+      st = 'draw';
     }
+    dispatch(
+      saveGameHistory({
+        status: st,
+        history,
+        orientir: orientation,
+      }),
+    );
     dispatch(opponentStopTurn());
     dispatch(userTurnStop());
     dispatch(isNotPlaying());
@@ -201,9 +233,9 @@ const GameScreen = () => {
     await AsyncStorage.removeItem('fen');
     await AsyncStorage.removeItem('room');
     await AsyncStorage.removeItem('opponent');
-  };
+  }, []);
 
-  const handleClosing = async () => {
+  const handleClosing = useCallback(async () => {
     // clearInterval(this.interval);
     // this.props.isEnd(this.game);
     // this.props.userTurnStop();
@@ -247,67 +279,72 @@ const GameScreen = () => {
     await AsyncStorage.removeItem('fen');
     await AsyncStorage.removeItem('room');
     await AsyncStorage.removeItem('opponent');
-  };
+  }, []);
 
-  const handleCapturedPiece = move => {
+  const handleCapturedPiece = useCallback(move => {
     if (move.color === 'w') {
       dispatch(setUserPieces([...userPieces, 'b' + move.captured]));
     } else {
       dispatch(setOpponentPieces([...opponentPieces, 'w' + move.captured]));
     }
-  };
+  }, []);
 
-  const onMove = async e => {
-    console.log(e);
-    await AsyncStorage.setItem('fen', e.state.fen);
-    await AsyncStorage.setItem('move', JSON.stringify(e.move));
-    dispatch(setFen(e.state.fen));
-    dispatch(setMove(e.move));
-    dispatch(setHistory([...history, e.move]));
-    if (room > 0 && orientation) {
-      if (orientation[0].toLowerCase() !== e.state.turn) {
-        if (isUserTurn) {
-          dispatch(isDisconnected());
-          timer.current = setTimeout(handleClosing, 30000);
-          dispatch(setIsUserTurn(false));
-        }
-        dispatch(userTurnStop());
-        dispatch(opponentTurn());
-        setDataToSend(
-          JSON.stringify({
-            type: 'his',
-            content: JSON.stringify({
-              history,
-              fen: e.state.fen,
-              room,
-              orientation,
-              move: e.move,
-              // user_time: this.props.disconnected
-              //   ? String(this.props.timeToSendUser)
-              //   : '',
-              // opponent_time: this.props.disconnected
-              //   ? String(this.props.timeToSendOp)
-              //   : '',
+  const onMove = useCallback(
+    async e => {
+      console.log(e);
+      await AsyncStorage.setItem('fen', e.state.fen);
+      await AsyncStorage.setItem('move', JSON.stringify(e.move));
+      dispatch(setFen(e.state.fen));
+      dispatch(setMove(e.move));
+      dispatch(setHistory([...history, e.move]));
+      if (room > 0 && orientation) {
+        if (orientation[0].toLowerCase() !== e.state.turn) {
+          if (isUserTurn) {
+            dispatch(isDisconnected());
+            timer.current = setTimeout(handleClosing, 30000);
+            dispatch(setIsUserTurn(false));
+          }
+          handleOpponentTimerStart();
+          dispatch(userTurnStop());
+          dispatch(opponentTurn());
+          setDataToSend(
+            JSON.stringify({
+              type: 'his',
+              content: JSON.stringify({
+                history,
+                fen: e.state.fen,
+                room,
+                orientation,
+                move: e.move,
+                // user_time: this.props.disconnected
+                //   ? String(this.props.timeToSendUser)
+                //   : '',
+                // opponent_time: this.props.disconnected
+                //   ? String(this.props.timeToSendOp)
+                //   : '',
+              }),
             }),
-          }),
-        );
-        if (e.move.captured) {
-          handleCapturedPiece(e.move);
-        }
-        // dispatch(setMove({}));
-        if (e.state.game_over) {
-          handleGameOver(e.state);
-        }
-      } else {
-        if (e.move.captured) {
-          handleCapturedPiece(e.move);
-        }
-        if (e.state.game_over) {
-          handleGameOver(e.state, true);
+          );
+          if (e.move.captured) {
+            handleCapturedPiece(e.move);
+          }
+          // dispatch(setMove({}));
+          if (e.state.game_over) {
+            handleGameOver(e.state);
+          }
+        } else {
+          handleUserTimerStart();
+          if (e.move.captured) {
+            handleCapturedPiece(e.move);
+          }
+          if (e.state.game_over) {
+            handleGameOver(e.state, true);
+          }
         }
       }
-    }
-  };
+    },
+    [userTurn],
+  );
 
   const handleSendMessage = () => {
     setDataToSend(
@@ -323,7 +360,7 @@ const GameScreen = () => {
     setMessage('');
   };
 
-  const handleCapturedPieces = piece => {
+  const handleCapturedPieces = useCallback(piece => {
     switch (piece) {
       case 'bp':
         return (
@@ -406,9 +443,9 @@ const GameScreen = () => {
           />
         );
     }
-  };
+  }, []);
 
-  const getHistory = () => {
+  const getHistory = useCallback(() => {
     let num = 0;
     return history
       .map((item, index, array) => {
@@ -423,7 +460,7 @@ const GameScreen = () => {
       })
       .filter(item => item != undefined || item != null)
       .reverse();
-  };
+  }, [history]);
 
   useEffect(() => {
     setSearchStarted(false);
@@ -468,6 +505,12 @@ const GameScreen = () => {
         case 'gave up':
           Alert.alert('Проигрыш', 'Вам поставили мат');
           break;
+        case 'user timeout':
+          Alert.alert('Проигрыш', 'Время вышло');
+          break;
+        case 'opponent timeout':
+          Alert.alert('Победа', 'У соперника вышло время');
+          break;
         default:
           Alert.alert('Игра окончена');
           break;
@@ -480,9 +523,23 @@ const GameScreen = () => {
     <View style={[GlobalStyles.container, GlobalStyles.flexJustifyCenter]}>
       {playing && (
         <View style={[GlobalStyles.mb10]}>
-          <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
-            {opponent?.name_user || 'Противник'}
-          </Text>
+          <View
+            style={[
+              GlobalStyles.flexRow,
+              GlobalStyles.flexJustifyBetween,
+              GlobalStyles.flexAlignCenter,
+            ]}>
+            <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
+              {opponent?.name_user || 'Противник'}
+            </Text>
+            <View>
+              <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
+                {opponentTimer.minute < 10 ? '0' : ''}
+                {opponentTimer.minute}:{opponentTimer.second < 10 ? '0' : ''}
+                {opponentTimer.second}
+              </Text>
+            </View>
+          </View>
           <View
             style={[
               GlobalStyles.flexRow,
@@ -498,9 +555,23 @@ const GameScreen = () => {
       </View>
       {playing && (
         <View style={[GlobalStyles.mb10]}>
-          <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
-            {user?.name_user || 'Вы'}
-          </Text>
+          <View
+            style={[
+              GlobalStyles.flexRow,
+              GlobalStyles.flexJustifyBetween,
+              GlobalStyles.flexAlignCenter,
+            ]}>
+            <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
+              {user?.name_user || 'Вы'}
+            </Text>
+            <View>
+              <Text style={[GlobalStyles.textBlack, GlobalStyles.fontBold]}>
+                {userTimer.minute < 10 ? '0' : ''}
+                {userTimer.minute}:{userTimer.second < 10 ? '0' : ''}
+                {userTimer.second}
+              </Text>
+            </View>
+          </View>
           <View
             style={[
               GlobalStyles.flexRow,
@@ -547,7 +618,11 @@ const GameScreen = () => {
             <Select
               items={intervals}
               value={time}
-              handleChange={val => setTime(val)}
+              handleChange={val => {
+                setTime(val);
+                setUserTimer({hour: 0, minute: Number(val), second: 0});
+                setOpponentTimer({hour: 0, minute: Number(val), second: 0});
+              }}
               placeholder="Время"
             />
           </View>
@@ -678,4 +753,4 @@ const GameScreen = () => {
   );
 };
 
-export default GameScreen;
+export default memo(GameScreen);

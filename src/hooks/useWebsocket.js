@@ -16,6 +16,7 @@ import {
   needRerender,
   opponentStopTurn,
   opponentTurn,
+  saveGameHistory,
   setClosed,
   setFen,
   setFirstTurn,
@@ -35,12 +36,18 @@ import {
   userTurn,
   userTurnStop,
 } from '../store/reducers/gameReducer';
+import {useCallback} from 'react';
 
 export const useWebsocket = () => {
   const websocket = useRef(null);
   const chessboard = useRef(null);
   const [data, setData] = useState(null);
   const [dataToSend, setDataToSend] = useState(null);
+  const [userTimer, setUserTimer] = useState({minute: 10, second: 0});
+  const [opponentTimer, setOpponentTimer] = useState({
+    minute: 10,
+    second: 0,
+  });
   const dispatch = useDispatch();
   const auth = useSelector(state => state.user.auth);
   const fen = useSelector(state => state.game.fen);
@@ -49,10 +56,12 @@ export const useWebsocket = () => {
   const room = useSelector(state => state.game.room);
   const move = useSelector(state => state.game.move);
   const opponent = useSelector(state => state.game.opponent);
+  const userTimerInterval = useRef(null);
+  const opponentTimerInterval = useRef(null);
 
   const time = useRef();
 
-  const connect = async () => {
+  const connect = useCallback(async () => {
     const token = await AsyncStorage.getItem('token');
     websocket.current = new WebSocket(`${Constants.WEBSOCKET_URL}${token}`);
     websocket.current.onopen = event => {
@@ -68,7 +77,7 @@ export const useWebsocket = () => {
     websocket.current.onerror = event => {
       console.log(event);
     };
-  };
+  }, []);
 
   const handleGameOver = state => {
     if (state.in_check) {
@@ -86,7 +95,7 @@ export const useWebsocket = () => {
     }
   };
 
-  const handleClosing = async () => {
+  const handleClosing = useCallback(async () => {
     // clearInterval(this.interval);
     // this.props.isEnd(this.game);
     // this.props.userTurnStop();
@@ -114,6 +123,11 @@ export const useWebsocket = () => {
     // this.props.isNotPlaying();
     // this.props.isNotDisconnected();
     // this.props.setClosed();
+    dispatch(
+      saveGameHistory({orientir: orientation, status: 'win connect', history}),
+    );
+    clearTimeout(userTimerInterval.current);
+    clearTimeout(opponentTimerInterval.current);
     dispatch(isNotDisconnected());
     dispatch(userTurnStop());
     dispatch(opponentStopTurn());
@@ -130,17 +144,106 @@ export const useWebsocket = () => {
     await AsyncStorage.removeItem('fen');
     await AsyncStorage.removeItem('room');
     await AsyncStorage.removeItem('opponent');
+  }, []);
+
+  const handleTimeout = async () => {
+    if (userTimer.minute === 0 && userTimer.minute === 0) {
+      dispatch(setStatus('user timeout'));
+      dispatch(
+        saveGameHistory({
+          status: 'user timeout',
+          history,
+          orientir: orientation,
+        }),
+      );
+    } else {
+      dispatch(setStatus('opponent timeout'));
+      dispatch(
+        saveGameHistory({
+          status: 'opponent timeout',
+          history,
+          orientir: orientation,
+        }),
+      );
+    }
+    clearTimeout(userTimerInterval.current);
+    clearTimeout(opponentTimerInterval.current);
+    dispatch(isNotDisconnected());
+    dispatch(userTurnStop());
+    dispatch(opponentStopTurn());
+    chessboard.current.resetBoard();
+    dispatch(setFen(''));
+    dispatch(setHistory([]));
+    dispatch(setRoom(0));
+    dispatch(setOrientation(''));
+    dispatch(setMove({}));
+    dispatch(isNotPlaying());
+    dispatch(setClosed());
+    setUserTimer({minute: 10, second: 0});
+    setOpponentTimer({minute: 10, second: 0});
+    await AsyncStorage.removeItem('move');
+    await AsyncStorage.removeItem('fen');
+    await AsyncStorage.removeItem('room');
+    await AsyncStorage.removeItem('opponent');
   };
 
-  const handleData = async data => {
+  const userTimerHandler = useCallback(() => {
+    setUserTimer(prev => {
+      if (prev.second === 0 && prev.minute > 0) {
+        return {minute: prev.minute - 1, second: 59};
+      } else if (prev.second > 0) {
+        return {minute: prev.minute, second: prev.second - 1};
+      } else if (prev.second === 0 && prev.minute === 0) {
+        handleTimeout();
+        return clearTimeout(userTimerInterval.current);
+      }
+    });
+    userTimerInterval.current = setTimeout(userTimerHandler, 1000);
+  }, []);
+
+  const handleUserTimerStart = useCallback(() => {
+    clearTimeout(userTimerInterval.current);
+    clearTimeout(opponentTimerInterval.current);
+    userTimerInterval.current = setTimeout(userTimerHandler, 1000);
+  }, []);
+
+  const opponentTimerHandler = useCallback(() => {
+    setOpponentTimer(prev => {
+      if (prev.second === 0 && prev.minute > 0) {
+        return {minute: prev.minute - 1, second: 59};
+      } else if (prev.second > 0) {
+        return {minute: prev.minute, second: prev.second - 1};
+      } else if (prev.second === 0 && prev.minute === 0) {
+        handleTimeout();
+        return clearTimeout(opponentTimerInterval.current);
+      }
+    });
+    opponentTimerInterval.current = setTimeout(opponentTimerHandler, 1000);
+  }, []);
+
+  const handleOpponentTimerStart = useCallback(() => {
+    clearTimeout(opponentTimerInterval.current);
+    clearTimeout(userTimerInterval.current);
+    opponentTimerInterval.current = setTimeout(opponentTimerHandler, 1000);
+  }, []);
+
+  const handleData = useCallback(async data => {
     if (data) {
       if (data.content !== '/A new socket has connected.') {
         //синхронизация таймеров
         if (data.info && data.info.includes('{')) {
-          // const {user, op} = JSON.parse(response.info);
-          // if (user !== undefined && op !== undefined) {
-          //   this.props.setTimeOp(Number(user - 450));
-          // }
+          const {user, op} = JSON.parse(data.info);
+          console.log(user);
+          console.log(op);
+          if (user !== undefined && op !== undefined) {
+            setOpponentTimer(prev => {
+              if (prev.second === 0) {
+                return {minute: prev.minute - 1, second: 59};
+              } else {
+                return {minute: prev.minute, second: prev.second - 1};
+              }
+            });
+          }
         }
         // переподключение
         else if (data.content == 'in_game_opponent') {
@@ -257,6 +360,7 @@ export const useWebsocket = () => {
           dispatch(getOpponentInfo(storedOpponent));
           dispatch(userTurn());
           dispatch(opponentStopTurn());
+          handleUserTimerStart();
           dispatch(isReloaded(true));
         }
         //игрок отключился
@@ -306,6 +410,13 @@ export const useWebsocket = () => {
           //   status,
           //   orientir: this.state.orientation,
           // });
+          dispatch(
+            saveGameHistory({
+              status: 'draw forced',
+              history,
+              orientir: orientation,
+            }),
+          );
           dispatch(isNotPlaying());
           // this.props.setHistory(this.game.history({verbose: true}));
           dispatch(setFen(''));
@@ -314,6 +425,8 @@ export const useWebsocket = () => {
           dispatch(setOrientation(''));
           dispatch(setUserPieces([]));
           dispatch(setOpponentPieces([]));
+          clearTimeout(userTimerInterval.current);
+          clearTimeout(opponentTimerInterval.current);
           Alert.alert('Ничья', 'Игрок согласился на ничью');
           await AsyncStorage.removeItem('move');
           await AsyncStorage.removeItem('fen');
@@ -329,6 +442,8 @@ export const useWebsocket = () => {
           //   status,
           //   orientir: this.state.orientation,
           // });
+          clearTimeout(userTimerInterval.current);
+          clearTimeout(opponentTimerInterval.current);
           dispatch(isNotPlaying());
           // this.props.setHistory(this.game.history({verbose: true}));
           chessboard.current.resetBoard();
@@ -366,6 +481,7 @@ export const useWebsocket = () => {
             if (data.step == 'write') {
               dispatch(userTurn());
               dispatch(opponentStopTurn());
+              handleUserTimerStart();
               // this.interval = setInterval(
               //   () => {
               //     this.sendMessage(true);
@@ -375,6 +491,7 @@ export const useWebsocket = () => {
             } else if (data.step == 'black') {
               dispatch(userTurnStop());
               dispatch(opponentTurn());
+              handleOpponentTimerStart();
             }
             dispatch(getOpponentInfo(data.opponent_id));
           } else {
@@ -496,7 +613,7 @@ export const useWebsocket = () => {
         }
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (auth) {
@@ -515,5 +632,16 @@ export const useWebsocket = () => {
     }
   }, [dataToSend]);
 
-  return {websocket, setDataToSend, chessboard, time};
+  return {
+    websocket,
+    setDataToSend,
+    chessboard,
+    time,
+    userTimer,
+    setUserTimer,
+    opponentTimer,
+    setOpponentTimer,
+    handleUserTimerStart,
+    handleOpponentTimerStart,
+  };
 };
