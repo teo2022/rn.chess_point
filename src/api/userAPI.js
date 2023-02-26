@@ -32,11 +32,6 @@ export const UserAPI = {
     const json = await response.json();
     return json;
   },
-  telegramLogin: async () => {},
-  vkLogin: async () => {},
-  updateUser: async () => {},
-  validateName: async () => {},
-  validateLogin: async () => {},
   currentUser: async () => {
     const token = (await AsyncStorage.getItem('token')) || '';
     const response = await fetch(`${Constants.SERVER_URL}/user/me`, {

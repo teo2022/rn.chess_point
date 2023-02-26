@@ -22,7 +22,6 @@ export const userLogin = createAsyncThunk(
   async ({login, password_hash}, thunkAPI) => {
     const response = await UserAPI.login(login, password_hash);
     await AsyncStorage.setItem('token', response?.data?.token);
-    console.log(response);
     return response;
   },
 );
@@ -32,7 +31,6 @@ export const userRegister = createAsyncThunk(
   async ({login, password_hash, type, name}, thunkAPI) => {
     const response = await UserAPI.register(login, password_hash, type, name);
     await AsyncStorage.setItem('token', response.token);
-    console.log(response);
     return response;
   },
 );
@@ -41,7 +39,6 @@ export const userGetInfo = createAsyncThunk(
   'user/userGetInfo',
   async (args, thunkAPI) => {
     const response = await UserAPI.currentUser();
-    console.log(response);
     return response;
   },
 );
@@ -67,12 +64,8 @@ export const userSlice = createSlice({
         state.user = action.payload.user;
       }
     });
-    builder.addCase(userLogin.rejected, (state, action) => {
-      console.log(action.payload);
-    });
-    builder.addCase(userRegister.rejected, (state, action) => {
-      console.log(action.payload);
-    });
+    builder.addCase(userLogin.rejected, (state, action) => {});
+    builder.addCase(userRegister.rejected, (state, action) => {});
     builder.addCase(userGetInfo.fulfilled, (state, action) => {
       if (action.payload.status) {
         state.user = action.payload.data;
@@ -82,7 +75,6 @@ export const userSlice = createSlice({
     });
     builder.addCase(userGetInfo.rejected, (state, action) => {
       state.loading = false;
-      console.log(action.payload);
     });
   },
 });

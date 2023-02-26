@@ -79,12 +79,10 @@ const GameScreen = () => {
   const history = useSelector(state => state.game.history);
   const playing = useSelector(state => state.game.playing);
   const wantDraw = useSelector(state => state.game.wantDraw);
-  const fen = useSelector(state => state.game.fen);
   const status = useSelector(state => state.game.status);
   const messages = useSelector(state => state.game.messages);
   const disconnected = useSelector(state => state.game.disconnected);
   const isUserTurn = useSelector(state => state.game.isUserTurn);
-  const reloaded = useSelector(state => state.game.reloaded);
   const opponent = useSelector(state => state.game.opponent);
   const userTurn = useSelector(state => state.game.turn);
   const user = useSelector(state => state.game.user);
@@ -92,6 +90,7 @@ const GameScreen = () => {
   const opponentPieces = useSelector(state => state.game.opponentPieces);
   const bottomSheetRef = useRef(null);
   const bottomSheetRef2 = useRef(null);
+  //для bottomsheet
   const snapPoints = useMemo(() => ['90%'], []);
   const bottomSheetOpen = () => bottomSheetRef.current.expand();
   const bottomSheetClose = () => bottomSheetRef.current.close();
@@ -107,7 +106,7 @@ const GameScreen = () => {
     ),
     [],
   );
-
+  //для таймеров
   const intervals = useMemo(
     () => [
       {label: '1 мин', value: '1'},
@@ -121,6 +120,7 @@ const GameScreen = () => {
     [],
   );
 
+  //начало поиска партии
   const handleSearchStart = useCallback(() => {
     setDataToSend(
       JSON.stringify({
@@ -131,6 +131,7 @@ const GameScreen = () => {
     setSearchStarted(true);
   }, []);
 
+  //сдался
   const handleGiveUp = useCallback(() => {
     Alert.alert('Поражение', 'Вы уверены, что хотите сдаться?', [
       {
@@ -165,6 +166,7 @@ const GameScreen = () => {
     ]);
   }, []);
 
+  //отмена поиска
   const handleSearchCancel = useCallback(() => {
     setDataToSend(
       JSON.stringify({
@@ -174,11 +176,13 @@ const GameScreen = () => {
     setSearchStarted(false);
   }, []);
 
+  //ничья
   const handleDraw = useCallback(() => {
     setDataToSend(JSON.stringify({type: 'disperse'}));
     dispatch(setNotQuit());
   }, []);
 
+  //действия при геймовере
   const handleGameOver = useCallback(async (state, opponent = false) => {
     setDataToSend(JSON.stringify({type: 'finish'}));
     let st = '';
@@ -235,34 +239,8 @@ const GameScreen = () => {
     await AsyncStorage.removeItem('opponent');
   }, []);
 
+  //соперник вышел
   const handleClosing = useCallback(async () => {
-    // clearInterval(this.interval);
-    // this.props.isEnd(this.game);
-    // this.props.userTurnStop();
-    // this.props.opponentStopTurn();
-    // this.game.reset();
-    // let status = 'win connect';
-    // this.props.setStatus(status);
-    // this.props.SaveHistory({
-    //   history: this.game.history({ verbose: true }),
-    //   status,
-    //   orientir: this.state.orientation,
-    // });
-    // this.setState(() => ({
-    //   fen: '',
-    //   dropSquareStyle: {},
-    //   squareStyles: {},
-    //   pieceSquare: '',
-    //   square: '',
-    //   history: [],
-    //   token: localStorage.getItem('token'),
-    //   room: 0,
-    //   orientation: '',
-    //   move: {},
-    // }));
-    // this.props.isNotPlaying();
-    // this.props.isNotDisconnected();
-    // this.props.setClosed();
     dispatch(isNotDisconnected());
     dispatch(userTurnStop());
     dispatch(opponentStopTurn());
@@ -281,6 +259,7 @@ const GameScreen = () => {
     await AsyncStorage.removeItem('opponent');
   }, []);
 
+  //срубленные фигуры
   const handleCapturedPiece = useCallback(move => {
     if (move.color === 'w') {
       dispatch(setUserPieces([...userPieces, 'b' + move.captured]));
@@ -289,15 +268,16 @@ const GameScreen = () => {
     }
   }, []);
 
+  //без useCallback очень сильно бьет по перформансу
   const onMove = useCallback(
     async e => {
-      console.log(e);
       await AsyncStorage.setItem('fen', e.state.fen);
       await AsyncStorage.setItem('move', JSON.stringify(e.move));
       dispatch(setFen(e.state.fen));
       dispatch(setMove(e.move));
       dispatch(setHistory([...history, e.move]));
       if (room > 0 && orientation) {
+        //true - сделан ход игрока, false - сделан ход соперника из сокетов
         if (orientation[0].toLowerCase() !== e.state.turn) {
           if (isUserTurn) {
             dispatch(isDisconnected());
@@ -316,19 +296,12 @@ const GameScreen = () => {
                 room,
                 orientation,
                 move: e.move,
-                // user_time: this.props.disconnected
-                //   ? String(this.props.timeToSendUser)
-                //   : '',
-                // opponent_time: this.props.disconnected
-                //   ? String(this.props.timeToSendOp)
-                //   : '',
               }),
             }),
           );
           if (e.move.captured) {
             handleCapturedPiece(e.move);
           }
-          // dispatch(setMove({}));
           if (e.state.game_over) {
             handleGameOver(e.state);
           }
@@ -346,6 +319,7 @@ const GameScreen = () => {
     [userTurn],
   );
 
+  //отправка сообщения в чат
   const handleSendMessage = () => {
     setDataToSend(
       JSON.stringify({
@@ -360,6 +334,7 @@ const GameScreen = () => {
     setMessage('');
   };
 
+  //фигуры срублены
   const handleCapturedPieces = useCallback(piece => {
     switch (piece) {
       case 'bp':
